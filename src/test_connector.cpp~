@@ -1,0 +1,30 @@
+#include <iostream>
+#include <mysql.h>
+
+using namespace std;
+
+int main()
+{
+  MYSQL mysql;
+  mysql=mysql_init(NULL);
+  if(NULL==mysql)
+    {
+      cout << "init miss!" <<endl;
+    }
+  const char *hostname = "127.0.0.1";
+  const char *username = "root";
+  const char *password = "robot15";
+  const char *database = "data1";
+  unsigned long portnumber = 3306;
+  if (NULL==mysql_real_connect(mysql, hostname, username, database, portnumber, NULL, 0) )
+    {
+      // 接続エラー
+      printf("error: %s\n", mysql_error(mysql));
+    } 
+    else 
+      {
+	//  接続成功
+      cout << "connect ok!" <<endl;
+      }
+    
+}

@@ -1,0 +1,393 @@
+/*
+2014.4.7----------------
+つねに何かをパブリッシュするモジュール
+
+送られてきたサービスによって、その出力を変える。
+
+一旦クリアにする
+
+
+2015.4.6----------------
+データベースから検索を行うモジュール
+
+どうしようかな。どういう仕組みにしようかな。
+パラメータのオプションで、表示するデータを変えるようなモジュールにする
+
+0.記録した人物のすべての位置
+1.すべての人物の最新の位置
+2.特定の個人の位置
+3.時間軸的な位置(この時間帯には誰がいたかというような)
+
+複数の検索にも対応したい
+つまり、特定の個人の位置と、その個人はある時間帯にはどこにいたかという情報
+
+だが、まずは適当にパブリッシュする機能から
+
+*/
+
+#include <ros/ros.h>
+#include <iostream>
+#include <mysql/mysql.h>
+#include <time.h>
+
+#include <fstream>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+#include <tf/transform_listener.h>
+#include <geometry_msgs/PointStamped.h>
+#include <sensor_msgs/Image.h>
+
+#include "humans_msgs/PersonPoseImgArray.h"
+#include "humans_msgs/Humans.h"
+#include "humans_msgs/HumanSrv.h"
+#include "humans_msgs/HumansSrv.h"
+#include "okao_client/OkaoStack.h"
+
+#include "Util.hpp"
+
+#include "okao_client/OkaoStack.h"
+//#include "MsgToMsg.hpp"
+
+#include <std_msgs/String.h>
+#define MAXOKAO 13
+
+using namespace std;
+
+humans_msgs::PersonPoseImgArray ppia;
+map<int, sensor_msgs::Image> imgstack;
+map<int, sensor_msgs::Image> grayImgStack;
+
+class PeoplePositionServer
+{
+private:
+  ros::NodeHandle nh;
+  ros::NodeHandle nh_param;
+
+  ros::Publisher pps_pub;
+  //ros::ServiceClient okao_stack;
+  ros::ServiceServer last_people_srv;
+  ros::ServiceServer particular_person_srv;
+  /*
+  ros::Subscriber db_sub;
+  ros::ServiceServer tracking_id_srv;
+  ros::ServiceServer okao_id_srv;
+  ros::ServiceServer name_srv;
+  */
+
+  MYSQL *connector;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+
+  string dbhost;
+  string dbuser;
+  string dbpass;
+  string dbname;
+  string dbtable;
+
+  time_t now;
+  struct tm *pnow;
+
+public:
+  PeoplePositionServer():
+    nh_param("~"),
+    dbhost("127.0.0.1"),
+    dbuser("root"),
+    dbpass("robot15"),
+    dbname("data1"),
+    dbtable("mapping_db_test")
+  {
+
+    //init parameter
+    nh_param.param("dbhost", dbhost, dbhost);
+    nh_param.param("dbuser", dbuser, dbuser);
+    nh_param.param("dbpass", dbpass, dbpass);
+    nh_param.param("dbname", dbname, dbname);
+    nh_param.param("dbtable", dbtable, dbtable);
+
+    pps_pub = nh.advertise<humans_msgs::PersonPoseImgArray
+			   >("/a_human", 10);
+    //okao_stack
+    //  = nh.serviceClient<okao_client::OkaoStack
+    //			 >("stack_send");
+    /*
+    db_sub = nh.subscribe("/humans/recog_info", 1, 
+			  &PeoplePositionDatabase::dbCallback, this);
+    tracking_id_srv 
+      = nh.advertiseService("tracking_id_srv", 
+			  &PeoplePositionDatabase::resTrackingId, this);
+    okao_id_srv 
+      = nh.advertiseService("okao_id_srv", 
+			    &PeoplePositionDatabase::resOkaoId, this);
+    name_srv
+      = nh.advertiseService("name_srv", 
+			    &PeoplePositionDatabase::resName, this);
+    */
+
+    ROS_ASSERT(initDBConnector());
+    ROS_ASSERT(initDBImage());
+  }
+  ~PeoplePositionServer()
+  {
+    ROS_ASSERT(shutdownDBConnector());
+  }
+
+private:
+  bool initDBConnector()
+  {
+    ROS_INFO("connetor : init ok");
+
+    connector = mysql_init(NULL);
+    if(!mysql_real_connect(connector, 
+			   dbhost.c_str(), 
+			   dbuser.c_str(), 
+			   dbpass.c_str(), 
+			   dbname.c_str(), 
+			   3306, 
+			   NULL, 
+			   CLIENT_MULTI_STATEMENTS)) 
+      {
+	fprintf(stderr, "%s\n", mysql_error(connector));
+	return false;
+      }
+    ROS_INFO("MySQL opend.");
+    return true;
+  }
+
+  bool shutdownDBConnector()
+  {
+    mysql_close(connector);
+    ROS_INFO("MySQL closed.");
+    return true;
+  }
+
+  bool initDBImage()
+  {
+    for(int i = 1 ; i =< OKAO ; ++i)
+      {
+	try
+	  {
+	    stringstream image_name;
+	    image_name <<"/home/uema/catkin_ws/src/okao_client/src/images/okao" << i << ".jpg";
+	    cv::Mat src = cv::imread(image_name.str());
+	    cout << "input: " << image_name.str() << endl;
+	    sensor_msgs::Image output, grayOutput;
+	    //cv::Mat outcutImage;
+	    //cv::resize(rgbImage, outcutImage, cv::Size(128,128));
+	    output.height = src.rows; 
+	    output.width = src.cols;
+	    output.encoding = "bgr8";//idToEncoding( outcutImage.type() );
+	    output.step 
+	      = src.cols * src.elemSize();
+	    output.data.assign(src.data, src.data + size_t(src.rows*src.step));
+	    //stack.request.image = output;
+	    imgstack[ i ] = output;
+	    
+	    cv::Mat graySrc;
+	    cvtColor(src, graySrc, CV_BGR2GRAY);
+
+	    grayOutput.height =  graySrc.rows; 
+	    grayOutput.width = graySrc.cols;
+	    grayOutput.encoding = "mono8";//idToEncoding( outcutImage.type() );
+	    grayOutput.step 
+	      = graySrc.cols * graySrc.elemSize();
+	    grayOutput.data.assign(graySrc.data, graySrc.data + size_t(graySrc.rows*graySrc.step));
+
+	    grayImgStack[ i ] = grayOutput;
+	  }
+	catch(cv::Exception& e)
+	  {
+	    std::cout << e.what() << std::endl;
+	    return false; 
+	  }
+      }
+return true;
+
+}
+
+public:
+  /*
+  void getOkaoStack(humans_msgs::Human hum, humans_msgs::PersonPoseImg *ppi)
+  {
+    okao_client::OkaoStack stack;
+    stack.request.header.stamp = hum.header.stamp;
+    stack.request.person.okao_id = hum.max_okao_id;
+
+    if( okao_stack.call( stack ) )
+      {   
+	ppi->person.hist = hum.max_hist;
+	ppi->person.okao_id = hum.max_okao_id;
+	ppi->person.name = stack.response.person.name;
+	//ppi->pose.position = hum.p;
+	//ppi->pose.orientation.w = 1;
+	
+	ppi->image = stack.response.image;
+	ppi->header.stamp = ros::Time::now();
+	ppi->header.frame_id = hum.header.frame_id;
+	//cout << hum.header.frame_id <<endl;
+	//dbhuman[rein->human[i].max_okao_id] = ppi;
+      }
+    else
+      {
+	cout << "okao_id: " << hum.max_okao_id << " has not stack!" <<endl;
+      }
+  }
+  */
+
+
+
+  //すべての人物の最新位置
+  void lastPeoplePosition()
+  {
+    stringstream select_query;
+    select_query << "SELECT hist, time_stamp, px, py FROM "
+		 << dbtable.c_str() 
+		 << "WHERE ;";
+
+    if( mysql_query( connector, select_query.str().c_str() ) )
+      {
+	ROS_ERROR("%s", mysql_error(connector));
+	ROS_ERROR("DB select error.");
+      }
+
+    ROS_INFO("QUERY: %s", select_query.str().c_str());
+
+    dataStore();
+
+  }
+
+  //特定の人物位置
+  void particularPersonPosition() 
+  {
+    stringstream select_query;
+    select_query << "SELECT hist, time_stamp, px, py FROM " 
+		 << dbtable.c_str() 
+		 << " WHERE name = 'Uema' AND okao_id = 1 ;";
+    //humans_msgs::PersonPoseImg ppi;
+    
+    if( mysql_query( connector, select_query.str().c_str() ) )
+      {
+	ROS_ERROR("%s", mysql_error(connector));
+	ROS_ERROR("DB select error.");
+      }
+
+    ROS_INFO("QUERY: %s", select_query.str().c_str());
+
+    dataStore();
+
+    /*
+    res = mysql_store_result( connector );
+    int num_fields = mysql_num_fields( res );//取得した列の数
+
+
+    while( (row = mysql_fetch_row(res)) )
+      {
+	humans_msgs::Human h_tmp;
+	h_tmp.max_okao_id = 1; 
+	h_tmp.header.stamp = ros::Time::now();
+	h_tmp.header.frame_id = "map";	  
+	humans_msgs::PersonPoseImg ppi;
+
+	bool db_ok = false;
+   
+	for(int i = 0; i < num_fields; i++)
+	  {
+	    // Make sure row[i] is valid!
+	    if(row[i] != NULL)
+	      {
+		db_ok = true;
+
+		if( i == 2 )
+		  ppi.pose.position.x = atof( row[i] );
+		if( i == 3 )
+		  ppi.pose.position.y = atof( row[i] );
+	      }
+	  }
+
+	if( db_ok )
+	  {
+	    getOkaoStack( h_tmp, &ppi );
+	    ppi.pose.orientation.w = 1;   
+	    //cout << "ppi: " << ppi.pose <<endl;
+	    ppia.ppis.push_back( ppi );
+	  }
+	    //	    else
+	    // cout << "NULL" << endl;
+      }
+    */
+  }
+
+  void clearPeoplePoseImgArray()
+  {
+
+
+  }
+
+  void dataStore()
+  {
+    res = mysql_store_result( connector );
+    int num_fields = mysql_num_fields( res );//取得した列の数
+
+    while( (row = mysql_fetch_row(res)) )
+      {
+	humans_msgs::Human h_tmp;
+	h_tmp.max_okao_id = 1; 
+	h_tmp.header.stamp = ros::Time::now();
+	h_tmp.header.frame_id = "map";	  
+	humans_msgs::PersonPoseImg ppi;
+	
+	bool db_ok = false;
+	
+	for(int i = 0; i < num_fields; i++)
+	  {
+	    // Make sure row[i] is valid!
+	    if(row[i] != NULL)
+	      {
+		db_ok = true;
+		
+		if( i == 2 )
+		  ppi.pose.position.x = atof( row[i] );
+		if( i == 3 )
+		  ppi.pose.position.y = atof( row[i] );
+	      }
+	  }
+
+	if( db_ok )
+	  {
+	    //getOkaoStack( h_tmp, &ppi );
+	    ppi.pose.orientation.w = 1;   
+	    ppia.ppis.push_back( ppi );
+	  }
+      }
+  }
+
+  //人物位置のパブリッシュ(メッセージの中のデータを出力する)
+  void peoplePositionPublisher()
+  {
+    ppia.header.stamp = ros::Time::now();
+    ppia.header.frame_id = "map";
+    pps_pub.publish( ppia );
+  }
+
+ 
+};
+
+int main(int argc, char** argv)
+{
+  ros::init(argc, argv, "position_database_server");
+  PeoplePositionServer PPSObj;
+  ros::Rate loop(0.5);
+  while(ros::ok())
+    {
+      PPSObj.particularPersonPosition();
+      PPSObj.peoplePositionPublisher();
+      ros::spinOnce();
+      loop.sleep();
+    }
+  //
+
+  return 0;
+}
