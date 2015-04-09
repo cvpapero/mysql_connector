@@ -13,6 +13,8 @@
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PointStamped.h>
 
+#include "picojson.h"
+
 #include "humans_msgs/PersonPoseImgArray.h"
 #include "humans_msgs/Humans.h"
 #include "humans_msgs/HumanSrv.h"
@@ -135,6 +137,13 @@ private:
 
     //tracking_id
     hdst->body.tracking_id = hsrc.body.tracking_id;
+
+    /*
+    for(int j = 0; j < hsrc.body.joints.size() ; ++j)
+      hdst->body.joints.push_back(hsrc.body.joints[j]);
+    */
+    //joints
+    hdst->body.joints = hsrc.body.joints;
   }
 
   void dbCallback(const humans_msgs::HumansConstPtr& msg)
@@ -189,10 +198,46 @@ private:
     grade = msg->human[i].face.persons[0].grade;
     */
 
+    string joints_data;
+    picojson::object obj_joints;
+    //picojson::array positions;
+    //stringstream joints_query, joints_data;
+    for(int j = 0; j < ah.body.joints.size() ; ++j)
+      {
+	//picojson::array position, orientation;
+	picojson::object position, orientation, joint;//, jx, jy,jz;
+	
+	joint.insert(make_pair("j_name", ah.body.joints[j].joint_name));
+	joint.insert(make_pair("t_state", ah.body.joints[j].tracking_state));
+
+	position.insert(make_pair("x",ah.body.joints[j].position.x));
+	position.insert(make_pair("y",ah.body.joints[j].position.y));
+	position.insert(make_pair("z",ah.body.joints[j].position.z));
+	
+	orientation.insert(make_pair("x",ah.body.joints[j].orientation.x));
+	orientation.insert(make_pair("y",ah.body.joints[j].orientation.y));
+	orientation.insert(make_pair("z",ah.body.joints[j].orientation.z));
+	orientation.insert(make_pair("w",ah.body.joints[j].orientation.w));
+
+	joint.insert(make_pair("position", position));
+	joint.insert(make_pair("orientation", orientation));
+
+	stringstream j_name;
+	j_name << "joint" << j;
+
+	obj_joints.insert(make_pair(j_name.str(), joint));
+
+      }
+    picojson::value joints = picojson::value(obj_joints);
+    joints_data = joints.serialize();
+
     stringstream insert_query;
     insert_query << "INSERT INTO "<< dbname.c_str() << "."
 		 << dbtable.c_str() 
-		 <<" (d_id, okao_id, hist, time_stamp, name, laboratory, grade, tracking_id, px, py, magni) VALUES ("
+		 <<" (d_id, okao_id, hist, time_stamp, name, " 
+		 << "laboratory, grade, tracking_id, px, py, magni, "
+		 << "joints"
+		 << ") VALUES ("
 		 << ah.d_id<< ", "
 		 << ah.max_okao_id << ", " 
 		 << ah.max_hist << ", "
@@ -203,7 +248,9 @@ private:
 		 << ah.body.tracking_id << ", "
 		 << ah.p.x <<", " 
 		 << ah.p.y <<", "
-		 << src.magni << " );"; 
+		 << src.magni << ", "
+		 << "'" << joints_data << "'"
+		 << ");"; 
     
     if(mysql_query( connector, insert_query.str().c_str()))
       {
@@ -212,26 +259,7 @@ private:
       }
     ROS_INFO("QUERY: %s", insert_query.str().c_str());
   }
-  //クエリ実行関数を作るか？
-  /*
-  bool resTrackingId(humans_msgs::HumanSrv::Request &req,
-		     humans_msgs::HumanSrv::Response &res)
-  {
-    return true;
-  }
 
-  bool resOkaoId(humans_msgs::HumanSrv::Request &req,
-		 humans_msgs::HumanSrv::Response &res)
-  {
-    return true;
-  }
-
-  bool resName(humans_msgs::HumanSrv::Request &req,
-	       humans_msgs::HumanSrv::Response &res)
-  {
-    return true;
-  }
-  */
 };
 
 int main(int argc, char** argv)

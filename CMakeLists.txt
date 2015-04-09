@@ -188,5 +188,6 @@ target_link_libraries(position_database_server ${catkin_LIBRARIES} ${OpenCV_LIBS
 add_executable(database_client src/database_client.cpp)
 target_link_libraries(database_client ${catkin_LIBRARIES})
 
-
+add_executable(database_client_srv src/database_client_srv.cpp)
+target_link_libraries(database_client_srv ${catkin_LIBRARIES})
 

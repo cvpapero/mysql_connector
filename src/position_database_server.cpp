@@ -37,6 +37,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include "picojson.h"
+
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PointStamped.h>
 #include <sensor_msgs/Image.h>
@@ -109,13 +111,13 @@ public:
       = nh.advertiseService("database_server_srv", 
 			    &PositionDatabaseServer::ServerService, this);
     track_srv 
-      = n.advertiseService("track_srv", 
+      = nh.advertiseService("track_srv", 
 			  &PositionDatabaseServer::resTrackingId, this);
     okao_srv 
-      = n.advertiseService("okao_srv", 
+      = nh.advertiseService("okao_srv", 
 			   &PositionDatabaseServer::resOkaoId, this);
      name_srv 
-       = n.advertiseService("name_srv", 
+       = nh.advertiseService("name_srv", 
 			    &PositionDatabaseServer::resName, this);
 
     ROS_ASSERT(initDBConnector());
@@ -286,14 +288,15 @@ public:
       }
 
     ROS_INFO("QUERY: %s", select_query.str().c_str());
-    int id = 1;
+    //int id = 1;
 
     res = mysql_store_result( connector );
     //int num_fields = mysql_num_rows( res );//取得した列の数
 
     while( (row = mysql_fetch_row(res)) )
       {
-	dataStore( row, id );
+	if(row[0])
+	  dataStore( row, okao_id );
       }
 
   }
@@ -325,6 +328,70 @@ public:
     //cout << "datastr out" << endl;    
   }
 
+  void dataStoreSrv( MYSQL_ROW row, humans_msgs::Human *h_res )
+  {
+    h_res->header.frame_id = "map";
+    h_res->header.stamp = ros::Time::now();
+    h_res->d_id = atoi( row[0] );
+    h_res->max_okao_id = atoi( row[1] );
+    h_res->max_hist = atoi( row[2] );
+    h_res->p.x = atof( row[8] );
+    h_res->p.y = atof( row[9] );
+    h_res->magni = atof( row[10] );
+    h_res->body.tracking_id = atoll( row[7] );
+    humans_msgs::Person per;
+    per.name = row[4];
+    per.laboratory = row[5];
+    per.grade = row[6];
+    h_res->face.persons.push_back( per );
+
+    humans_msgs::Body body_tmp;
+    jsonToMsg(row[11], &body_tmp);
+    h_res->body.joints = body_tmp.joints;
+    //cout << "row[11]:";
+    //cout << row[11] << endl;
+  }
+
+  void jsonToMsg(string row, humans_msgs::Body* body)
+  {
+    picojson::value v;
+    string err;
+    picojson::parse(v, row.begin(), row.end(), &err);
+    
+    if( err.empty() )
+      {
+	picojson::object &obj = v.get<picojson::object>();
+
+	for(int j_num = 0; j_num < 24; ++j_num)
+	  {
+	    humans_msgs::Joints joint;
+	    stringstream j_name;
+	    j_name << "joint" << j_num;
+	    picojson::object &oj = obj[j_name.str()].get<picojson::object>();
+
+	    joint.joint_name = (string)oj["j_name"].get<string>();
+	    joint.tracking_state = (double)oj["t_state"].get<double>();
+
+	    picojson::object &pos = oj["position"].get<picojson::object>();
+	    picojson::object &ori = oj["orientation"].get<picojson::object>();
+
+	    joint.position.x = (double)pos["x"].get<double>();
+	    joint.position.y = (double)pos["y"].get<double>();
+	    joint.position.z = (double)pos["z"].get<double>();
+
+	    joint.orientation.x = (double)ori["x"].get<double>();
+	    joint.orientation.y = (double)ori["y"].get<double>();
+	    joint.orientation.z = (double)ori["z"].get<double>();
+	    joint.orientation.w = (double)ori["w"].get<double>();
+
+	    body->joints.push_back( joint );
+		
+	  
+	  }
+      }
+   
+  }
+
   //人物位置のパブリッシュ(メッセージの中のデータを出力する)
   void peoplePositionPublisher()
   {
@@ -336,45 +403,100 @@ public:
 
 
   //クエリを使って探す（まだできていない）
-  bool resTrackingId(humans_msgs::HumanSrv::Request &req,
-		     humans_msgs::HumanSrv::Response &res)
+  bool resTrackingId(humans_msgs::HumanSrv::Request &request,
+		     humans_msgs::HumanSrv::Response &response)
   {
-    cout<<"tracking_id:"<< req.src.body.tracking_id << endl;
+    cout<<"tracking_id:"<< request.src.body.tracking_id << endl;
     
+    stringstream select_query;
     /*
-    //o_DBHuman内から、tracking_idをキーにして検索
-    map<int, humans_msgs::Human>::iterator it_o = o_DBHuman.begin();
-    while( it_o != o_DBHuman.end() )
+    select_query << "SELECT d_id, okao_id, hist, max(time_stamp)," 
+		 << " name, laboratory, grade, tracking_id, px, py, magni FROM " 
+		 << dbtable.c_str() 
+		 << " WHERE tracking_id = " << request.src.body.tracking_id << " ;";
+    */
+
+    select_query << "SELECT d_id, okao_id, hist, time_stamp," 
+		 << " name, laboratory, grade, tracking_id,"
+		 << "px, py, magni, joints "
+		 << " FROM " 
+		 << dbtable.c_str() 
+		 << " WHERE tracking_id = " << request.src.body.tracking_id 
+		 << " AND time_stamp = (select max(time_stamp) from "
+		 << dbtable.c_str() 
+		 << " );";
+
+    if( mysql_query( connector, select_query.str().c_str() ) )
       {
-	if( it_o->second.body.tracking_id == req.src.body.tracking_id )
-	  {
-	    humans_msgs::Human h_res;
-	    humans_msgs::Body b_res;
-	    humans_msgs::Face f_res;
-	    h_res.header.frame_id = req.src.header.frame_id;
-	    getPerson(it_o->second, &f_res);
-	    h_res.max_okao_id = it_o->second.max_okao_id;
-	    h_res.max_hist = it_o->second.max_hist;
-	    h_res.header = it_o->second.header;
-	    
-	    h_res.p = it_o->second.p;
-	    h_res.face = f_res;
-	    res.dst = h_res;
-	    cout <<"response name: " << f_res.persons[0].name << endl;
-	    return true;
-	  }
-	++it_o;
+	ROS_ERROR("%s", mysql_error(connector));
+	ROS_ERROR("DB select error.");
       }
 
-    */
-    cout<<"no tracking_id:"<< req.src.body.tracking_id << endl;
-    return false;
+    ROS_INFO("QUERY: %s", select_query.str().c_str());
+
+    res = mysql_store_result( connector );
+    //int num_fields = mysql_num_rows( res );//取得した列の数
+
+    humans_msgs::Human human_res;
+
+    row = mysql_fetch_row(res);
+    
+    if(row[0])
+      {
+	dataStoreSrv( row, &human_res );
+	response.dst = human_res;
+	return true;
+      }
+    else
+      {
+	cout<<"no tracking_id:"<< request.src.body.tracking_id << endl;
+	return false;
+      }
+
   }
 
-  bool resOkaoId(humans_msgs::HumanSrv::Request &req,
-		 humans_msgs::HumanSrv::Response &res)
+  bool resOkaoId(humans_msgs::HumanSrv::Request &request,
+		 humans_msgs::HumanSrv::Response &response)
   {
+    cout<<"okao_id:"<< request.src.max_okao_id << endl;
 
+    stringstream select_query;
+    select_query << "SELECT d_id, okao_id, hist, time_stamp," 
+		 << " name, laboratory, grade, tracking_id,"
+		 << "px, py, magni, joints "
+		 << " FROM " 
+		 << dbtable.c_str() 
+		 << " WHERE okao_id = " << request.src.max_okao_id 
+		 << " AND time_stamp = (select max(time_stamp) from "
+		 << dbtable.c_str() 
+		 << " );";
+    
+    if( mysql_query( connector, select_query.str().c_str() ) )
+      {
+	ROS_ERROR("%s", mysql_error(connector));
+	ROS_ERROR("DB select error.");
+      }
+
+    ROS_INFO("QUERY: %s", select_query.str().c_str());
+
+    res = mysql_store_result( connector );
+    //int num_fields = mysql_num_rows( res );//取得した列の数
+
+    humans_msgs::Human human_res;
+
+    row = mysql_fetch_row(res);
+    
+    if(row[0])
+      {
+	dataStoreSrv( row, &human_res );
+	response.dst = human_res;
+	return true;
+      }
+    else
+      {
+	cout<<"no okao_id:"<< request.src.max_okao_id << endl;
+	return false;
+      }
   }
  
   bool resName(humans_msgs::HumanSrv::Request &req,
@@ -395,6 +517,7 @@ int main(int argc, char** argv)
   //PDSObj.lastPeoplePosition();
   while(ros::ok())
     {
+      //PDSObj.lastPeoplePosition();
       PDSObj.peoplePositionPublisher();
       ros::spinOnce();
       loop.sleep();
