@@ -11,7 +11,16 @@
 #include <humans_msgs/Body.h>
 #include <humans_msgs/Face.h>
 #include <tf/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PointStamped.h>
+
+#include <tf2_ros/buffer_client.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/transform_datatypes.h>
+#include <tf2_kdl/tf2_kdl.h>
+//#include <tf2_bullet/tf2_bullet.h>
 
 //#include <cstdlib>
 
@@ -139,6 +148,44 @@ namespace Util{
 	
 	tl.transformPoint(dst->header.frame_id, ros::Time(), 
 			  src, src.header.frame_id, *dst);
+      }
+    catch(tf::TransformException& ex)
+      {
+	ROS_ERROR("Received an exception trying to transform a point to /map: %s", 
+		  ex.what());
+	//++waittime;
+      }
+
+  }
+
+  void transformHead2(geometry_msgs::PointStamped src, 
+		      geometry_msgs::PointStamped *dst)
+  {
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tl2(tfBuffer);
+
+    tf2_ros::BufferClient client("tf_action");
+
+    client.waitForServer(ros::Duration(4.0));
+
+    geometry_msgs::TransformStamped tfs;
+    try
+      {
+	//notice ros::time!!
+	
+	//tl2.waitForTransform(dst->header.frame_id, src.header.frame_id, 
+	//		     src.header.stamp, ros::Duration(3.0));
+	*dst = client.transform(src, "map");
+	/* 
+	tfs = tfBuffer.lookupTransform(dst->header.frame_id, 
+				       src.header.frame_id,
+				       ros::Time(0), 
+				       ros::Duration(3.0))
+	*/
+	//*dst = dst_tmp;
+	
+	//tl2.transformPoint(dst->header.frame_id, ros::Time(), 
+	//		   src, src.header.frame_id, *dst);
       }
     catch(tf::TransformException& ex)
       {

@@ -114,44 +114,42 @@ private:
     return true;
   }
 
-  //現在はbody.pのみ
-  void transformPosition(humans_msgs::Human hsrc, humans_msgs::Human *hdst)
+  /*
+  void transformPosition(geometry_msgs::PointStamped hsrc, geometry_msgs::Point *hdst)
   {
-    //cout << "now looking: " << it_o->second.max_okao_id << endl;
     ros::Time t = ros::Time::now();
     geometry_msgs::PointStamped src;
-    src.point = hsrc.p; 
-    src.header.stamp = t;
-    src.header.frame_id = hsrc.header.frame_id;
+    src = hsrc; 
+    //src.header.stamp = t;
+    //src.header.frame_id = hsrc.header.frame_id;
     geometry_msgs::PointStamped dst;
     dst.header.stamp = t;
     dst.header.frame_id = hdst->header.frame_id;
 
     Util::transformHead(src, &dst);
-    hdst->p = dst.point;
+
+    hdst = dst->point;
+  }
+
+  void setEtcetera(humans_msgs::Human hsrc, humans_msgs::Human *hdst)
+  {
+    //hdst->p = dst.point;
     hdst->header.stamp = t;
     hdst->header.frame_id = dst.header.frame_id;
     hdst->d_id = hsrc.d_id;
     hdst->max_okao_id = hsrc.max_okao_id;
     hdst->max_hist = hsrc.max_hist;
-
     //tracking_id
     hdst->body.tracking_id = hsrc.body.tracking_id;
-
-    /*
-    for(int j = 0; j < hsrc.body.joints.size() ; ++j)
-      hdst->body.joints.push_back(hsrc.body.joints[j]);
-    */
     //joints
     hdst->body.joints = hsrc.body.joints;
   }
+  */
 
   void dbCallback(const humans_msgs::HumansConstPtr& msg)
   {
-    //cout <<"callback"<<endl;
     now = time(NULL);
     pnow = localtime(&now);
-
     stringstream time_buff;
     time_buff << pnow->tm_year+1900 
 	      <<"-"<< pnow->tm_mon+1 
@@ -162,62 +160,40 @@ private:
 
     for(int i = 0; i < msg->human.size(); ++i)
       {
-	//人物位置の座標変換
-	humans_msgs::Human ah;
-	ah.header.frame_id = "map";
-	ah.header.stamp = msg->header.stamp;
+	geometry_msgs::PointStamped src, dst;
+	src.header = msg->human[i].header;
+	src.point = msg->human[i].p;
+	dst.header.frame_id = "map";
+	dst.header.stamp = ros::Time::now();
+	Util::transformHead(src, &dst);
 
-	transformPosition( msg->human[i], &ah );
-
-	//name, labo, gradeの取り出し
-	//この取り出しを、上手いこと確定させることはできないだろうか？
-	//あるいは、入ってなかったら、そのデータは記録しないとか。
 	if(msg->human[i].face.persons.size() != 0)
 	  {
-	    query_execute( time_buff.str(), ah, msg->human[i] );
+	    query_execute( time_buff.str(), dst.point, msg->human[i] );
 	  }
-	/*
-	else
-	  {
-	    name = "Unknown";
-	    laboratory = "Unknown";
-	    grade = "Unknown";
-	  }
-	*/
       }
   }
 
-  void query_execute(string time_buff, humans_msgs::Human ah, humans_msgs::Human src)
+  void query_execute(string time_buff, geometry_msgs::Point pt, humans_msgs::Human src)
   {
-    //cout <<"exe" << endl;
-    /*
-    string name, laboratory, grade;
-
-    name = msg->human[i].face.persons[0].name;
-    laboratory = msg->human[i].face.persons[0].laboratory;
-    grade = msg->human[i].face.persons[0].grade;
-    */
-
     string joints_data;
     picojson::object obj_joints;
-    //picojson::array positions;
-    //stringstream joints_query, joints_data;
-    for(int j = 0; j < ah.body.joints.size() ; ++j)
+
+    for(int j = 0; j < src.body.joints.size() ; ++j)
       {
-	//picojson::array position, orientation;
 	picojson::object position, orientation, joint;//, jx, jy,jz;
 	
-	joint.insert(make_pair("j_name", ah.body.joints[j].joint_name));
-	joint.insert(make_pair("t_state", ah.body.joints[j].tracking_state));
+	joint.insert(make_pair("j_name", src.body.joints[j].joint_name));
+	joint.insert(make_pair("t_state", src.body.joints[j].tracking_state));
 
-	position.insert(make_pair("x",ah.body.joints[j].position.x));
-	position.insert(make_pair("y",ah.body.joints[j].position.y));
-	position.insert(make_pair("z",ah.body.joints[j].position.z));
+	position.insert(make_pair("x", src.body.joints[j].position.x));
+	position.insert(make_pair("y", src.body.joints[j].position.y));
+	position.insert(make_pair("z", src.body.joints[j].position.z));
 	
-	orientation.insert(make_pair("x",ah.body.joints[j].orientation.x));
-	orientation.insert(make_pair("y",ah.body.joints[j].orientation.y));
-	orientation.insert(make_pair("z",ah.body.joints[j].orientation.z));
-	orientation.insert(make_pair("w",ah.body.joints[j].orientation.w));
+	orientation.insert(make_pair("x", src.body.joints[j].orientation.x));
+	orientation.insert(make_pair("y", src.body.joints[j].orientation.y));
+	orientation.insert(make_pair("z", src.body.joints[j].orientation.z));
+	orientation.insert(make_pair("w", src.body.joints[j].orientation.w));
 
 	joint.insert(make_pair("position", position));
 	joint.insert(make_pair("orientation", orientation));
@@ -226,7 +202,6 @@ private:
 	j_name << "joint" << j;
 
 	obj_joints.insert(make_pair(j_name.str(), joint));
-
       }
     picojson::value joints = picojson::value(obj_joints);
     joints_data = joints.serialize();
@@ -238,16 +213,16 @@ private:
 		 << "laboratory, grade, tracking_id, px, py, magni, "
 		 << "joints"
 		 << ") VALUES ("
-		 << ah.d_id<< ", "
-		 << ah.max_okao_id << ", " 
-		 << ah.max_hist << ", "
+		 << src.d_id<< ", "
+		 << src.max_okao_id << ", " 
+		 << src.max_hist << ", "
 		 << "'" << time_buff.c_str() << "'" << ", " 
 		 << "'" << src.face.persons[0].name.c_str() << "'" << ", "
 		 << "'" << src.face.persons[0].laboratory.c_str() << "'" << ", "
 		 << "'" << src.face.persons[0].grade.c_str() << "'" <<", "
-		 << ah.body.tracking_id << ", "
-		 << ah.p.x <<", " 
-		 << ah.p.y <<", "
+		 << src.body.tracking_id << ", "
+		 << pt.x <<", " 
+		 << pt.y <<", "
 		 << src.magni << ", "
 		 << "'" << joints_data << "'"
 		 << ");"; 
