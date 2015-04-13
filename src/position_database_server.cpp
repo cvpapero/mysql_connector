@@ -55,6 +55,7 @@
 
 #include <std_msgs/String.h>
 #define MAXOKAO 13
+#define JOINT_NUM 25
 
 using namespace std;
 
@@ -244,7 +245,8 @@ public:
     for(int i = 1; i <= MAXOKAO ; ++i)
       {
 	stringstream select_query;
-	select_query << "SELECT hist, max(time_stamp), name, laboratory, grade, tracking_id, px, py, magni FROM "
+	select_query << "SELECT hist, max(time_stamp)," 
+		     <<" name, laboratory, grade, tracking_id, px, py, pz, magni FROM "
 		     << dbtable.c_str() 
 		     << " WHERE okao_id = " << i << " ;";
 	
@@ -276,7 +278,8 @@ public:
     clearPeoplePoseImgArray();
 
     stringstream select_query;
-    select_query << "SELECT hist, time_stamp, name, laboratory, grade, tracking_id, px, py, magni FROM " 
+    select_query << "SELECT hist, time_stamp, "
+		 << "name, laboratory, grade, tracking_id, px, py, pz, magni FROM " 
 		 << dbtable.c_str() 
 		 << " WHERE okao_id = " << okao_id << " ;";
     //humans_msgs::PersonPoseImg ppi;
@@ -330,6 +333,9 @@ public:
 
   void dataStoreSrv( MYSQL_ROW row, humans_msgs::Human *h_res )
   {
+
+    cout<< "database store" << endl;
+
     h_res->header.frame_id = "map";
     h_res->header.stamp = ros::Time::now();
     h_res->d_id = atoi( row[0] );
@@ -337,7 +343,8 @@ public:
     h_res->max_hist = atoi( row[2] );
     h_res->p.x = atof( row[8] );
     h_res->p.y = atof( row[9] );
-    h_res->magni = atof( row[10] );
+    h_res->p.z = atof( row[10] );
+    h_res->magni = atof( row[11] );
     h_res->body.tracking_id = atoll( row[7] );
     humans_msgs::Person per;
     per.name = row[4];
@@ -346,7 +353,7 @@ public:
     h_res->face.persons.push_back( per );
 
     humans_msgs::Body body_tmp;
-    jsonToMsg(row[11], &body_tmp);
+    jsonToMsg(row[12], &body_tmp);
     h_res->body.joints = body_tmp.joints;
     //cout << "row[11]:";
     //cout << row[11] << endl;
@@ -354,6 +361,7 @@ public:
 
   void jsonToMsg(string row, humans_msgs::Body* body)
   {
+    cout<< "json to msg" << endl;
     picojson::value v;
     string err;
     picojson::parse(v, row.begin(), row.end(), &err);
@@ -362,7 +370,7 @@ public:
       {
 	picojson::object &obj = v.get<picojson::object>();
 
-	for(int j_num = 0; j_num < 24; ++j_num)
+	for(int j_num = 0; j_num < JOINT_NUM; ++j_num)
 	  {
 	    humans_msgs::Joints joint;
 	    stringstream j_name;
@@ -409,16 +417,9 @@ public:
     cout<<"tracking_id:"<< request.src.body.tracking_id << endl;
     
     stringstream select_query;
-    /*
-    select_query << "SELECT d_id, okao_id, hist, max(time_stamp)," 
-		 << " name, laboratory, grade, tracking_id, px, py, magni FROM " 
-		 << dbtable.c_str() 
-		 << " WHERE tracking_id = " << request.src.body.tracking_id << " ;";
-    */
-
     select_query << "SELECT d_id, okao_id, hist, time_stamp," 
 		 << " name, laboratory, grade, tracking_id,"
-		 << "px, py, magni, joints "
+		 << "px, py, pz, magni, joints "
 		 << " FROM " 
 		 << dbtable.c_str() 
 		 << " WHERE tracking_id = " << request.src.body.tracking_id 
@@ -440,9 +441,10 @@ public:
     humans_msgs::Human human_res;
 
     row = mysql_fetch_row(res);
-    
+    cout << "row[0] bf"<<endl;
     if(row[0])
       {
+
 	dataStoreSrv( row, &human_res );
 	response.dst = human_res;
 	return true;
@@ -463,13 +465,13 @@ public:
     stringstream select_query;
     select_query << "SELECT d_id, okao_id, hist, time_stamp," 
 		 << " name, laboratory, grade, tracking_id,"
-		 << "px, py, magni, joints "
+		 << "px, py, pz, magni, joints "
 		 << " FROM " 
 		 << dbtable.c_str() 
-		 << " WHERE okao_id = " << request.src.max_okao_id 
-		 << " AND time_stamp = (select max(time_stamp) from "
+		 << " where okao_id = " << request.src.max_okao_id
+		 << " and time_stamp=(select max(time_stamp) from "
 		 << dbtable.c_str() 
-		 << " );";
+		 << ");";
     
     if( mysql_query( connector, select_query.str().c_str() ) )
       {
@@ -485,9 +487,10 @@ public:
     humans_msgs::Human human_res;
 
     row = mysql_fetch_row(res);
-    
-    if(row[0])
+    cout << "row: " << row <<endl;
+    if(row)
       {
+	cout << "row[0] af"<<endl;
 	dataStoreSrv( row, &human_res );
 	response.dst = human_res;
 	return true;

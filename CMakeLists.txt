@@ -192,8 +192,8 @@ target_link_libraries(people_position_database ${catkin_LIBRARIES} mysqlclient)
 add_executable(position_database_server src/position_database_server.cpp)
 target_link_libraries(position_database_server ${catkin_LIBRARIES} ${OpenCV_LIBS} mysqlclient)
 
-add_executable(database_client src/database_client.cpp)
-target_link_libraries(database_client ${catkin_LIBRARIES})
+add_executable(database_client_joints src/database_client_joints.cpp)
+target_link_libraries(database_client_joints ${catkin_LIBRARIES})
 
 add_executable(database_client_srv src/database_client_srv.cpp)
 target_link_libraries(database_client_srv ${catkin_LIBRARIES})

@@ -20,12 +20,13 @@
 #include "humans_msgs/HumanSrv.h"
 #include "humans_msgs/HumansSrv.h"
 
-#include "Util.hpp"
+//#include "Util.hpp"
 
 #include "okao_client/OkaoStack.h"
 //#include "MsgToMsg.hpp"
 
 #include <std_msgs/String.h>
+#define HEAD 3
 
 using namespace std;
 
@@ -40,6 +41,7 @@ private:
   //ros::ServiceServer tracking_id_srv;
   //ros::ServiceServer okao_id_srv;
   //ros::ServiceServer name_srv;
+  tf::TransformListener tl;
 
   MYSQL *connector;
 
@@ -146,6 +148,30 @@ private:
   }
   */
 
+
+  void transformPoint(geometry_msgs::PointStamped src, 
+		      geometry_msgs::PointStamped *dst)
+  {
+   
+    try
+      {
+	//notice ros::time!!
+	
+	tl.waitForTransform(dst->header.frame_id, src.header.frame_id, 
+			    src.header.stamp, ros::Duration(3.0));
+	
+	tl.transformPoint(dst->header.frame_id, ros::Time(), 
+			  src, src.header.frame_id, *dst);
+      }
+    catch(tf::TransformException& ex)
+      {
+	ROS_ERROR("Received an exception trying to transform a point to /map: %s", 
+		  ex.what());
+	//++waittime;
+      }
+
+  }
+
   void dbCallback(const humans_msgs::HumansConstPtr& msg)
   {
     now = time(NULL);
@@ -165,7 +191,7 @@ private:
 	src.point = msg->human[i].p;
 	dst.header.frame_id = "map";
 	dst.header.stamp = ros::Time::now();
-	Util::transformHead(src, &dst);
+	transformPoint(src, &dst);
 
 	if(msg->human[i].face.persons.size() != 0)
 	  {
@@ -179,6 +205,11 @@ private:
     string joints_data;
     picojson::object obj_joints;
 
+    //変換用
+    double diff_x = pt.x - src.body.joints[HEAD].position.x;
+    double diff_y = pt.y - src.body.joints[HEAD].position.y;
+    double diff_z = pt.z - src.body.joints[HEAD].position.z;
+
     for(int j = 0; j < src.body.joints.size() ; ++j)
       {
 	picojson::object position, orientation, joint;//, jx, jy,jz;
@@ -186,9 +217,12 @@ private:
 	joint.insert(make_pair("j_name", src.body.joints[j].joint_name));
 	joint.insert(make_pair("t_state", src.body.joints[j].tracking_state));
 
-	position.insert(make_pair("x", src.body.joints[j].position.x));
-	position.insert(make_pair("y", src.body.joints[j].position.y));
-	position.insert(make_pair("z", src.body.joints[j].position.z));
+	double jx = src.body.joints[j].position.x + diff_x;
+	double jy = src.body.joints[j].position.y + diff_y;
+	double jz = src.body.joints[j].position.z + diff_z;
+	position.insert(make_pair("x", jx));
+	position.insert(make_pair("y", jy));
+	position.insert(make_pair("z", jz));
 	
 	orientation.insert(make_pair("x", src.body.joints[j].orientation.x));
 	orientation.insert(make_pair("y", src.body.joints[j].orientation.y));
@@ -210,7 +244,7 @@ private:
     insert_query << "INSERT INTO "<< dbname.c_str() << "."
 		 << dbtable.c_str() 
 		 <<" (d_id, okao_id, hist, time_stamp, name, " 
-		 << "laboratory, grade, tracking_id, px, py, magni, "
+		 << "laboratory, grade, tracking_id, px, py, pz, magni, "
 		 << "joints"
 		 << ") VALUES ("
 		 << src.d_id<< ", "
@@ -223,6 +257,7 @@ private:
 		 << src.body.tracking_id << ", "
 		 << pt.x <<", " 
 		 << pt.y <<", "
+		 << pt.z <<", "
 		 << src.magni << ", "
 		 << "'" << joints_data << "'"
 		 << ");"; 
