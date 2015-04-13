@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 #include "humans_msgs/DatabaseSrv.h"
-#include "humans_msgs/HumanSrv.h"
+#include "humans_msgs/HumanImgSrv.h"
 #include <visualization_msgs/Marker.h>
 #include "humans_msgs/PersonPoseImgArray.h"
 #include "okao_client/OkaoStack.h"
@@ -22,7 +22,7 @@ public:
   JointsClient()
   {
     //ros::Rate loop(10);
-    srv = n.serviceClient<humans_msgs::HumanSrv>("okao_srv");
+    srv = n.serviceClient<humans_msgs::HumanImgSrv>("okao_srv");
 
     viz_pub = 
       n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
@@ -30,8 +30,8 @@ public:
     pps_pub 
       = n.advertise<humans_msgs::PersonPoseImgArray>("/v_human", 10);
 
-    okaoStack
-      = n.serviceClient<okao_client::OkaoStack>("stack_send");
+    //okaoStack
+    //  = n.serviceClient<okao_client::OkaoStack>("stack_send");
   }
 
   ~JointsClient()
@@ -50,21 +50,99 @@ public:
     cout << "input okao_id: " << okao_id << endl;
     //cin >> okao_id;
     
-    humans_msgs::HumanSrv hs;
+    humans_msgs::HumanImgSrv hs;
     //hs.request.rule = rule;
     hs.request.src.max_okao_id = okao_id;
     
-    okao_client::OkaoStack okao_img;
-    okao_img.request.person.okao_id = okao_id;
+    //okao_client::OkaoStack okao_img;
+    //okao_img.request.person.okao_id = okao_id;
 
-    if(srv.call( hs ) && okaoStack.call(okao_img))
+    if( srv.call( hs ) )
       {	
-	markerPublisher( hs.response.dst, okao_img.response.image );
+	markerPublisher( hs.response.dst, hs.response.img );
       }
     else
       {
 	cout << "not found!"<<endl;
       }
+  }
+
+
+  void jointInput(vector<geometry_msgs::Point> joints, vector<geometry_msgs::Point> *line_points)
+  {
+
+    line_points->push_back(joints[0]);
+    line_points->push_back(joints[1]);
+
+    line_points->push_back(joints[1]);
+    line_points->push_back(joints[20]);
+
+    line_points->push_back(joints[20]);
+    line_points->push_back(joints[2]);
+
+    line_points->push_back(joints[2]);
+    line_points->push_back(joints[3]);
+
+    line_points->push_back(joints[20]);
+    line_points->push_back(joints[8]);
+
+    line_points->push_back(joints[8]);
+    line_points->push_back(joints[9]);
+
+    line_points->push_back(joints[9]);
+    line_points->push_back(joints[10]);
+
+    line_points->push_back(joints[10]);
+    line_points->push_back(joints[11]);
+
+    line_points->push_back(joints[11]);
+    line_points->push_back(joints[23]);
+
+    line_points->push_back(joints[11]);
+    line_points->push_back(joints[24]);
+
+    line_points->push_back(joints[20]);
+    line_points->push_back(joints[4]);
+
+    line_points->push_back(joints[4]);
+    line_points->push_back(joints[5]);
+
+    line_points->push_back(joints[5]);
+    line_points->push_back(joints[6]);
+
+    line_points->push_back(joints[6]);
+    line_points->push_back(joints[7]);
+
+    line_points->push_back(joints[7]);
+    line_points->push_back(joints[21]);
+
+    line_points->push_back(joints[7]);
+    line_points->push_back(joints[22]);
+
+    line_points->push_back(joints[0]);
+    line_points->push_back(joints[16]);
+
+    line_points->push_back(joints[16]);
+    line_points->push_back(joints[17]);
+
+    line_points->push_back(joints[17]);
+    line_points->push_back(joints[18]);
+
+    line_points->push_back(joints[18]);
+    line_points->push_back(joints[19]);
+
+    line_points->push_back(joints[0]);
+    line_points->push_back(joints[12]);
+
+    line_points->push_back(joints[12]);
+    line_points->push_back(joints[13]);
+
+    line_points->push_back(joints[13]);
+    line_points->push_back(joints[14]);
+
+    line_points->push_back(joints[14]);
+    line_points->push_back(joints[15]);   
+
   }
 
   void markerPublisher(humans_msgs::Human hm, sensor_msgs::Image img)
@@ -92,10 +170,11 @@ public:
     line_list.color.g = 1.0f;
     line_list.color.a = 1.0;
 
+    /*
     double diff_x = hm.p.x - hm.body.joints[3].position.x;
     double diff_y = hm.p.y - hm.body.joints[3].position.y;
     double diff_z = hm.p.z - hm.body.joints[3].position.z;
-
+    */
     /*
     cout <<"p: x,y,z = "<<hm.p.x << ", "<< hm.p.y << ", "<< hm.p.z << endl;
     cout <<"head: x,y,z = "
@@ -121,83 +200,16 @@ public:
 	//cout << "i:"<< i << endl;
       }
 
+    vector<geometry_msgs::Point> line_points;
+    jointInput( joints, &line_points );
 
-    line_list.points.push_back(joints[0]);
-    line_list.points.push_back(joints[1]);
-
-    line_list.points.push_back(joints[1]);
-    line_list.points.push_back(joints[20]);
-
-    line_list.points.push_back(joints[20]);
-    line_list.points.push_back(joints[2]);
-
-    line_list.points.push_back(joints[2]);
-    line_list.points.push_back(joints[3]);
-
-    line_list.points.push_back(joints[20]);
-    line_list.points.push_back(joints[8]);
-
-    line_list.points.push_back(joints[8]);
-    line_list.points.push_back(joints[9]);
-
-    line_list.points.push_back(joints[9]);
-    line_list.points.push_back(joints[10]);
-
-    line_list.points.push_back(joints[10]);
-    line_list.points.push_back(joints[11]);
-
-    line_list.points.push_back(joints[11]);
-    line_list.points.push_back(joints[23]);
-
-    line_list.points.push_back(joints[11]);
-    line_list.points.push_back(joints[24]);
-
-    line_list.points.push_back(joints[20]);
-    line_list.points.push_back(joints[4]);
-
-    line_list.points.push_back(joints[4]);
-    line_list.points.push_back(joints[5]);
-
-    line_list.points.push_back(joints[5]);
-    line_list.points.push_back(joints[6]);
-
-    line_list.points.push_back(joints[6]);
-    line_list.points.push_back(joints[7]);
-
-    line_list.points.push_back(joints[7]);
-    line_list.points.push_back(joints[21]);
-
-    line_list.points.push_back(joints[7]);
-    line_list.points.push_back(joints[22]);
-
-    line_list.points.push_back(joints[0]);
-    line_list.points.push_back(joints[16]);
-
-    line_list.points.push_back(joints[16]);
-    line_list.points.push_back(joints[17]);
-
-    line_list.points.push_back(joints[17]);
-    line_list.points.push_back(joints[18]);
-
-    line_list.points.push_back(joints[18]);
-    line_list.points.push_back(joints[19]);
-
-    line_list.points.push_back(joints[0]);
-    line_list.points.push_back(joints[12]);
-
-    line_list.points.push_back(joints[12]);
-    line_list.points.push_back(joints[13]);
-
-    line_list.points.push_back(joints[13]);
-    line_list.points.push_back(joints[14]);
-
-    line_list.points.push_back(joints[14]);
-    line_list.points.push_back(joints[15]);    
+    line_list.points = line_points; 
 
     humans_msgs::PersonPoseImgArray ppia;
     humans_msgs::PersonPoseImg ppi;
     ppi.person.okao_id = hm.max_okao_id;
     ppi.person.hist = hm.max_hist;
+    ppi.person.name = hm.face.persons[0].name;
     ppi.pose.position = hm.p;
     ppi.pose.orientation.w = 1;
     ppi.image = img;
@@ -225,7 +237,7 @@ int main(int argc, char** argv)
 
   while(ros::ok())
     { 
-      jc.jointsRequest(1);
+      jc.jointsRequest(12);
       ros::spinOnce();
       //loop.sleep();
     }

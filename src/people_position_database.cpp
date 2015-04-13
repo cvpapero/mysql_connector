@@ -177,13 +177,50 @@ private:
     now = time(NULL);
     pnow = localtime(&now);
     stringstream time_buff;
+    /*
     time_buff << pnow->tm_year+1900 
 	      <<"-"<< pnow->tm_mon+1 
 	      << "-" << pnow->tm_mday
 	      << " " << pnow->tm_hour 
 	      <<":" << pnow->tm_min 
 	      << ":" << pnow->tm_sec; 
+    */	 
+    stringstream mon, day, hour, min, sec;
 
+    if(pnow->tm_mon+1 < 10)
+      mon << "0" << pnow->tm_mon+1;
+    else
+      mon << pnow->tm_mon+1;
+
+    if(pnow->tm_mday < 10)
+      day << "0" << pnow->tm_mday;
+    else
+      day << pnow->tm_mday;
+
+    if(pnow->tm_hour < 10)
+      hour << "0" << pnow->tm_hour;
+    else
+      hour << pnow->tm_hour;
+
+    if(pnow->tm_min < 10)
+      min << "0" << pnow->tm_min;
+    else
+      min << pnow->tm_min;
+
+    if(pnow->tm_sec < 10)
+      sec << "0" << pnow->tm_sec;
+    else
+      sec << pnow->tm_sec;
+
+
+    time_buff << pnow->tm_year+1900 
+	      << mon.str() 
+	      << day.str()
+	      << hour.str() 
+	      << min.str() 
+	      << sec.str(); 
+    
+    //cout << time_buff.str().c_str() << endl;
     for(int i = 0; i < msg->human.size(); ++i)
       {
 	geometry_msgs::PointStamped src, dst;
@@ -195,12 +232,12 @@ private:
 
 	if(msg->human[i].face.persons.size() != 0)
 	  {
-	    query_execute( time_buff.str(), dst.point, msg->human[i] );
+	    query_execute( atol(time_buff.str().c_str()), dst.point, msg->human[i] );
 	  }
       }
   }
 
-  void query_execute(string time_buff, geometry_msgs::Point pt, humans_msgs::Human src)
+  void query_execute(long datetime, geometry_msgs::Point pt, humans_msgs::Human src)
   {
     string joints_data;
     picojson::object obj_joints;
@@ -250,7 +287,8 @@ private:
 		 << src.d_id<< ", "
 		 << src.max_okao_id << ", " 
 		 << src.max_hist << ", "
-		 << "'" << time_buff.c_str() << "'" << ", " 
+		 << datetime << ", "
+      //<< "'" << datetime << "'" << ", " 
 		 << "'" << src.face.persons[0].name.c_str() << "'" << ", "
 		 << "'" << src.face.persons[0].laboratory.c_str() << "'" << ", "
 		 << "'" << src.face.persons[0].grade.c_str() << "'" <<", "
