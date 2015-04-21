@@ -15,8 +15,8 @@ class JointsClient
 private:
   ros::NodeHandle n;
   ros::ServiceClient srv; 
-  ros::ServiceClient joints_last;
-  ros::ServiceServer joints_stream;
+  ros::ServiceClient okaoStack;
+  ros::ServiceServer okaoIdSrv;
   ros::Publisher viz_pub;
   ros::Publisher pps_pub;
 
@@ -34,13 +34,9 @@ public:
     pps_pub 
       = n.advertise<humans_msgs::PersonPoseImgArray>("/v_human", 10);
 
-    joint_last
-      = n.advertiseService("joints_last_srv",
-			   &JointsClient::jointsLastRequest, this);
-
-    joint_stream
-      = n.advertiseService("joints_stream_srv",
-			   &JointsClient::JointsStreamRequest, this);
+    okaoIdSrv
+      = n.advertiseService("okao_id_srv",
+			   &JointsClient::jointsRequest, this);
     //okaoStack
     //  = n.serviceClient<okao_client::OkaoStack>("stack_send");
   }
@@ -52,28 +48,35 @@ public:
 
 
 
-  bool jointsLastRequest(humans_msgs::Int32::Request &req,
+  bool jointsRequest(humans_msgs::Int32::Request &req,
 		     humans_msgs::Int32::Response &res)
   {
     okao_id.clear();
-
+    //string rule;
+    //int okao_id;
+    //cout << "input rule: ";
+    //cin >> rule;
     for(int i = 0;  i < req.n.size(); ++i)
       {
 	okao_id.push_back(req.n[i]);
 	cout << "input okao_id: " << okao_id[i] << endl;
       }
+    //cin >> okao_id;
     return true;
   }    
 
   void jointsCall()
   {
+
+
     //ここをどうするか？
     for(int i = 0; i < okao_id.size(); ++i)
       {
 
 	humans_msgs::HumanImgSrv hs;
 	//hs.request.rule = rule;
-       	
+	
+	
 	hs.request.src.max_okao_id = okao_id[i];
 	
 	//okao_client::OkaoStack okao_img;
@@ -193,11 +196,35 @@ public:
     line_list.scale.x = 0.1;
     line_list.color.g = 1.0f;
     line_list.color.a = 1.0;
+
+    /*
+    double diff_x = hm.p.x - hm.body.joints[3].position.x;
+    double diff_y = hm.p.y - hm.body.joints[3].position.y;
+    double diff_z = hm.p.z - hm.body.joints[3].position.z;
+    */
+    /*
+    cout <<"p: x,y,z = "<<hm.p.x << ", "<< hm.p.y << ", "<< hm.p.z << endl;
+    cout <<"head: x,y,z = "
+	 <<hm.body.joints[3].position.x<<","
+	 <<hm.body.joints[3].position.y<<","
+	 <<hm.body.joints[3].position.z<<endl; 
+    cout << "diff: x,y,z = " << diff_x << ", " << diff_y << ", " << diff_z << endl;
+    */
     
     for(int i = 0; i < hm.body.joints.size(); ++i)
       {
+	/*
+	geometry_msgs::Point bp;
+	bp.x = hm.body.joints[ i ].position.x + diff_x;
+	bp.y = hm.body.joints[ i ].position.y + diff_y;
+	bp.z = hm.body.joints[ i ].position.z + diff_z;
+
+	points.points.push_back( bp );
+	joints.push_back( bp );
+	*/
 	points.points.push_back( hm.body.joints[ i ].position );
 	joints.push_back( hm.body.joints[ i ].position );
+
       }
 
     vector<geometry_msgs::Point> line_points;

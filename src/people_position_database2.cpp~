@@ -150,48 +150,8 @@ private:
 	      <<"-"<< pnow->tm_mon+1 
 	      << "-" << pnow->tm_mday
 	      << " " << pnow->tm_hour 
-	      <<":" << pnow->tm_min 
+	      << ":" << pnow->tm_min 
 	      << ":" << pnow->tm_sec; 
-    
-    //data time long type	 
-    /*
-    stringstream mon, day, hour, min, sec;
-
-    if(pnow->tm_mon+1 < 10)
-      mon << "0" << pnow->tm_mon+1;
-    else
-      mon << pnow->tm_mon+1;
-
-    if(pnow->tm_mday < 10)
-      day << "0" << pnow->tm_mday;
-    else
-      day << pnow->tm_mday;
-
-    if(pnow->tm_hour < 10)
-      hour << "0" << pnow->tm_hour;
-    else
-      hour << pnow->tm_hour;
-
-    if(pnow->tm_min < 10)
-      min << "0" << pnow->tm_min;
-    else
-      min << pnow->tm_min;
-
-    if(pnow->tm_sec < 10)
-      sec << "0" << pnow->tm_sec;
-    else
-      sec << pnow->tm_sec;
-    
-
-    time_buff << pnow->tm_year+1900 
-	      << mon.str() 
-	      << day.str()
-	      << hour.str() 
-	      << min.str() 
-	      << sec.str(); 
-
-	      atol(time_buff.str().c_str());
-    */
 
     //cout << time_buff.str().c_str() << endl;
     for(int i = 0; i < msg->human.size(); ++i)
@@ -235,13 +195,6 @@ private:
 	position.insert(make_pair("z", jz));
 	joint.insert(make_pair("position", position));
 	
-	/*
-	orientation.insert(make_pair("x", src.body.joints[j].orientation.x));
-	orientation.insert(make_pair("y", src.body.joints[j].orientation.y));
-	orientation.insert(make_pair("z", src.body.joints[j].orientation.z));
-	orientation.insert(make_pair("w", src.body.joints[j].orientation.w));
-	joint.insert(make_pair("orientation", orientation));
-	*/
 	stringstream j_name;
 	j_name << "joint" << j;
 
@@ -260,7 +213,6 @@ private:
 		 << src.d_id<< ", "
 		 << src.max_okao_id << ", " 
 		 << src.max_hist << ", "
-      //<< datetime << ", "
 		 << "'" << datetime << "'" << ", " 
 		 << "'" << src.face.persons[0].name.c_str() << "'" << ", "
 		 << "'" << src.face.persons[0].laboratory.c_str() << "'" << ", "
@@ -272,7 +224,6 @@ private:
 		 << src.magni << ", "
 		 << "'" << joints_data << "'"
 		 << ");"; 
-    
     if(mysql_query( connector, insert_query.str().c_str()))
       {
 	ROS_ERROR("%s", mysql_error(connector));

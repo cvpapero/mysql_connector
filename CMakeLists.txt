@@ -186,14 +186,20 @@ include_directories(
 #add_executable(test_connector2 src/test_connector2.cpp)
 #target_link_libraries(test_connector2 ${catkin_LIBRARIES} mysqlclient)
 
-add_executable(people_position_database src/people_position_database.cpp)
-target_link_libraries(people_position_database ${catkin_LIBRARIES} mysqlclient)
+add_executable(people_position_database2 src/people_position_database2.cpp)
+target_link_libraries(people_position_database2 ${catkin_LIBRARIES} mysqlclient)
+
+#add_executable(position_database_update src/position_database_update.cpp)
+#target_link_libraries(position_database_update ${catkin_LIBRARIES} mysqlclient)
 
 add_executable(position_database_server src/position_database_server.cpp)
 target_link_libraries(position_database_server ${catkin_LIBRARIES} ${OpenCV_LIBS} mysqlclient)
 
-add_executable(database_client_joints src/database_client_joints.cpp)
-target_link_libraries(database_client_joints ${catkin_LIBRARIES})
+#add_executable(database_client_joints src/database_client_joints.cpp)
+#target_link_libraries(database_client_joints ${catkin_LIBRARIES})
+
+#add_executable(database_client_path src/database_client_path.cpp)
+#target_link_libraries(database_client_path ${catkin_LIBRARIES})
 
 add_executable(database_client_srv src/database_client_srv.cpp)
 target_link_libraries(database_client_srv ${catkin_LIBRARIES})
