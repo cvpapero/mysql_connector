@@ -121,7 +121,7 @@ private:
       }
     else
       {
-	ROS_ERROR("table create");
+	ROS_INFO("table create");
 
 	if( createTable() )
 	  {
@@ -168,10 +168,10 @@ private:
     stringstream create_query;
     create_query << "CREATE TABLE  "<< dbname.c_str() << "."
 		 << dbtable.c_str() 
-		 <<" (d_id INT(11), okao_id INT(11), hist INT(11), "
+		 <<" (okao_id INT(11), hist INT(11), "
 		 << "time_stamp DATETIME, name VARCHAR(45), " 
 		 << "laboratory VARCHAR(45), grade VARCHAR(45), tracking_id BIGINT(20), "
-		 << "px DOUBLE, py DOUBLE, pz DOUBLE, magni DOUBLE, "
+		 << "px DOUBLE, py DOUBLE, pz DOUBLE, "
 		 << "joints TEXT "
 		 << ");"; 
 
@@ -283,11 +283,10 @@ private:
     stringstream insert_query;
     insert_query << "INSERT INTO "<< dbname.c_str() << "."
 		 << dbtable.c_str() 
-		 <<" (d_id, okao_id, hist, time_stamp, name, " 
-		 << "laboratory, grade, tracking_id, px, py, pz, magni, "
+		 <<" (okao_id, hist, time_stamp, name, " 
+		 << "laboratory, grade, tracking_id, px, py, pz, "
 		 << "joints"
 		 << ") VALUES ("
-		 << src.d_id<< ", "
 		 << src.max_okao_id << ", " 
 		 << src.max_hist << ", "
 		 << "'" << datetime << "'" << ", " 
@@ -298,7 +297,6 @@ private:
 		 << pt.x <<", " 
 		 << pt.y <<", "
 		 << pt.z <<", "
-		 << src.magni << ", "
 		 << "'" << joints_data << "'"
 		 << ");"; 
 
@@ -308,6 +306,12 @@ private:
       {
 	ROS_ERROR("%s", mysql_error(connector));
 	ROS_ERROR("DB write error.");
+
+	//もしデータベースに接続できなかった場合再度接続する。
+	//もしDBが存在しなかったらつくる
+	ROS_ASSERT(initDBConnector());
+	ROS_ASSERT(initDBTable());
+
 	ros::shutdown();
       }
   }

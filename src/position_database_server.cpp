@@ -343,23 +343,23 @@ public:
 
     h_res->header.frame_id = "map";
     h_res->header.stamp = ros::Time::now();
-    h_res->d_id = atoi( row[0] );
-    h_res->max_okao_id = atoi( row[1] );
-    h_res->max_hist = atoi( row[2] );
-    h_res->p.x = atof( row[8] );
-    h_res->p.y = atof( row[9] );
-    h_res->p.z = atof( row[10] );
-    h_res->magni = atof( row[11] );
-    h_res->body.tracking_id = atoll( row[7] );
+    //h_res->d_id = atoi( row[0] );
+    h_res->max_okao_id = atoi( row[0] );
+    h_res->max_hist = atoi( row[1] );
+    h_res->p.x = atof( row[7] );
+    h_res->p.y = atof( row[8] );
+    h_res->p.z = atof( row[9] );
+    //h_res->magni = atof( row[10] );
+    h_res->body.tracking_id = atoll( row[6] );
 
     humans_msgs::Person per;
-    per.name = row[4];
-    per.laboratory = row[5];
-    per.grade = row[6];
+    per.name = row[3];
+    per.laboratory = row[4];
+    per.grade = row[5];
     h_res->face.persons.push_back( per );
 
     humans_msgs::Body body_tmp;
-    jsonToMsg(row[12], &body_tmp);
+    jsonToMsg(row[10], &body_tmp);
     h_res->body.joints = body_tmp.joints;
     //cout << "row[11]:";
     //cout << row[11] << endl;

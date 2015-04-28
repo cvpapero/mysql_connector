@@ -189,8 +189,8 @@ include_directories(
 add_executable(people_position_database2 src/people_position_database2.cpp)
 target_link_libraries(people_position_database2 ${catkin_LIBRARIES} mysqlclient)
 
-#add_executable(position_database_update src/position_database_update.cpp)
-#target_link_libraries(position_database_update ${catkin_LIBRARIES} mysqlclient)
+add_executable(position_database_update src/position_database_update.cpp)
+target_link_libraries(position_database_update ${catkin_LIBRARIES} mysqlclient)
 
 add_executable(position_database_server src/position_database_server.cpp)
 target_link_libraries(position_database_server ${catkin_LIBRARIES} ${OpenCV_LIBS} mysqlclient)

@@ -6,6 +6,13 @@ tracking_idとokao_idを1対1対応させるように書き換えて
 なぜ必要かというと、検索する際にばらつきがあると、必要なデータを取得できない
 もちろん、取得された生データは残しておく
 
+アルゴリズム
+1.tracking_idを取得する
+2.取得していたトラッキングIDが取得されなくなったら3へ
+3.tracking_idをキーにしてそれに結びついたすべての情報を取得
+4.それぞれのokao_idについてmagniの最大値を求める
+5.最大のmagniを出したokao_idに書き換えて保存
+
 */
 
 #include <ros/ros.h>
@@ -34,7 +41,7 @@ tracking_idとokao_idを1対1対応させるように書き換えて
 
 using namespace std;
 
-vector< long long > now;
+//vector< long long > now;
 vector< long long > past;
 
 class PeoplePositionDatabase
@@ -44,9 +51,6 @@ private:
   ros::NodeHandle nh_param;
 
   ros::Subscriber db_sub;
-  //ros::ServiceServer tracking_id_srv;
-  //ros::ServiceServer okao_id_srv;
-  //ros::ServiceServer name_srv;
   tf::TransformListener tl;
 
   MYSQL *connector;
@@ -59,6 +63,7 @@ private:
   string dbname;
   string dbtable;
 
+
   time_t now;
   struct tm *pnow;
 
@@ -68,8 +73,7 @@ public:
     dbhost("127.0.0.1"),
     dbuser("root"),
     dbpass("robot15"),
-    dbname("data1"),
-    dbtable("mapping_db_test")
+    dbname("data1")
   {
 
     //init parameter
@@ -77,12 +81,22 @@ public:
     nh_param.param("dbuser", dbuser, dbuser);
     nh_param.param("dbpass", dbpass, dbpass);
     nh_param.param("dbname", dbname, dbname);
-    nh_param.param("dbtable", dbtable, dbtable);
 
     db_sub = nh.subscribe("/humans/recog_info", 1, 
 			  &PeoplePositionDatabase::dbCallback, this);
 
+    now = time(NULL);
+    pnow = localtime(&now);
+    stringstream dbtable_name;
+    
+    dbtable_name << pnow->tm_year+1900 
+		 << pnow->tm_mon+1 
+		 << pnow->tm_mday;
+
+    dbtable = dbtable_name.str();
+
     ROS_ASSERT(initDBConnector());
+    ROS_ASSERT(initDBTable());
   }
   ~PeoplePositionDatabase()
   {
@@ -103,14 +117,52 @@ private:
 	fprintf(stderr, "%s\n", mysql_error(connector));
 	return false;
       }
-
     ROS_INFO("MySQL opend.");
-
     return true;
   }
 
+ bool initDBTable()
+  {
+    if( monitorTable() )
+      {
+	ROS_INFO("table exist!!");
+      }
+    else
+      {
+	ROS_INFO("miss...");
+	ros::shutdown();
+      }   
+    ROS_INFO("MySQL opend.");
+    return true;
+  }
+
+  //テーブルが存在するかどうか
+  bool monitorTable()
+  {
+    stringstream show_query;
+    show_query << "SHOW TABLES FROM " << dbname.c_str() 
+	       << " LIKE '" << dbtable.c_str() << "';";
+
+    if(mysql_query( connector, show_query.str().c_str()))
+      {
+	ROS_ERROR("%s", mysql_error(connector));
+	ROS_ERROR("DB write error.");
+	return false;
+      }
+    if(res = mysql_store_result( connector ))
+      {
+	int num_fields;
+	if( num_fields = mysql_num_rows(res) )
+	  return true;
+	else
+	  return false;
+      }  
+  }
+
+
   bool shutdownDBConnector()
   {
+    past.clear();
     mysql_close(connector);
     ROS_INFO("MySQL closed.");
     return true;
@@ -137,15 +189,11 @@ private:
 	    select( past[i] );
 	  }
       }
-    
-    //nowの中身は初期化されたpastに渡される
-    //past.clear()は、時間がたってから呼び出しても言いような気がする.や、それはあとでいいや
-    //if(msg->human.size())
-    // {
-	past.clear();
-	past = now;
-	//}
+    past.clear();
+    past = now;
+    now.clear();
   }
+
   /*
   void update( MYSQL_ROW row )
   {
@@ -174,11 +222,13 @@ private:
   void select(long long tracking_id)
   {
     int unknown = 0;
-    map< int, int >okaiId;
+    map< int, int >okaoId;
     map< int, humans_msgs::Person >per_stack;
     //ここでtracking_idに結びついたすべてのokao_id, name, labo, grade, magniをselectする
     stringstream select_query;
-    select_query << "SELECT okao_id, name, laboratory, grade, magni FROM "
+    select_query << "SELECT okao_id, time_stamp, name, laboratory, grade, magni FROM "
+		 << dbname.c_str()
+		 <<"."
 		 << dbtable.c_str()
 		 << " WHERE tracking_id = "
 		 << tracking_id
@@ -191,6 +241,10 @@ private:
       }
     ROS_INFO("QUERY: %s", select_query.str().c_str());
 
+    vector<string> datatime;
+    humans_msgs::Person tmp;
+    double max_magni = 0.0;
+
     if(res = mysql_store_result( connector ))
       {
 	int num_fields;
@@ -198,28 +252,47 @@ private:
 	  {
 	    while( (row = mysql_fetch_row( res )) )
 	      {
-		//
-		if( atof(row[4]) > THRESHOLD )
+		datatime.push_back(row[1]);
+		//cout << "row[]" << row[0] << "," << row[2] << "," << row[4] <<endl;
+		if( atof(row[5]) > max_magni )
 		  {
-		    ++okaoId[ atoi(row[0]) ];
-		    humans_msgs::Person tmp;
-		    tmp.name = row[1];
-		    tmp.laboratory = row[2];
-		    tmp.grade = row[3];
-		    per_stack[ atoi(row[0]) ] = tmp;
-		  }
-		else
-		  {
-		    ++unknown;
+		    max_magni = atof(row[5]);
+		    tmp.okao_id = atoi(row[0]);
+		    tmp.name = row[2];
+		    tmp.laboratory = row[3];
+		    tmp.grade = row[4];
 		  }
 	      }
-	    //ここで、最大のokaoIdとunknownを比較する
-	    //もしunknownが大きいなら。すべてunknownでupdateする
-	    //それ以外なら、一番大きな値okaoIdで書き換え
-	  }
-	else
-	  {
-	    cout << "tracking_id: "<< tracking_id << ", row_num: "<<num_fields<<endl;
+
+	    //アップデート
+	    for(int i = 0; i<datatime.size(); ++i)
+	      {
+		stringstream update_query;
+		
+		update_query << "UPDATE "
+			     << dbname.c_str()<<"."<<dbtable.c_str()
+			     << " SET okao_id = "
+			     << tmp.okao_id << ", "
+			     << "name = '"
+			     << tmp.name.c_str() << "', "
+			     << "laboratory = '"
+			     << tmp.laboratory.c_str() << "', "
+			     << "grade = '"
+			     << tmp.grade.c_str() 
+			     << "' WHERE tracking_id = "
+			     << tracking_id << " AND "
+			     << "time_stamp = '"
+			     << datatime[i].c_str()
+			     <<"';";
+
+		if( mysql_query( connector, update_query.str().c_str() ) )
+		  {
+		    ROS_ERROR("%s", mysql_error(connector));
+		    ROS_ERROR("DB select error.");
+		  }
+		ROS_INFO("QUERY: %s", update_query.str().c_str());
+	      }
+
 	  }
       }
     else
