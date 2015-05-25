@@ -15,7 +15,7 @@ class JointsClient
 private:
   ros::NodeHandle n;
   ros::ServiceClient srv; 
-  ros::ServiceClient joints_last;
+  ros::ServiceServer joints_last;
   ros::ServiceServer joints_stream;
   ros::Publisher viz_pub;
   ros::Publisher pps_pub;
@@ -34,13 +34,27 @@ public:
     pps_pub 
       = n.advertise<humans_msgs::PersonPoseImgArray>("/v_human", 10);
 
-    joint_last
+    joints_last
       = n.advertiseService("joints_last_srv",
 			   &JointsClient::jointsLastRequest, this);
-
-    joint_stream
-      = n.advertiseService("joints_stream_srv",
-			   &JointsClient::JointsStreamRequest, this);
+    /*
+    okao_id.push_back(1);
+    okao_id.push_back(2);
+    okao_id.push_back(3);
+    okao_id.push_back(4);
+    okao_id.push_back(5);
+    okao_id.push_back(6);
+    okao_id.push_back(7);
+    okao_id.push_back(8);
+    okao_id.push_back(9);
+    okao_id.push_back(10);
+    okao_id.push_back(11);
+    okao_id.push_back(12);
+    okao_id.push_back(13);
+    */
+    //joints_stream
+    //  = n.advertiseService("joints_stream_srv",
+    //			   &JointsClient::JointsStreamRequest, this);
     //okaoStack
     //  = n.serviceClient<okao_client::OkaoStack>("stack_send");
   }
@@ -53,15 +67,17 @@ public:
 
 
   bool jointsLastRequest(humans_msgs::Int32::Request &req,
-		     humans_msgs::Int32::Response &res)
+			 humans_msgs::Int32::Response &res)
   {
     okao_id.clear();
-
+    
     for(int i = 0;  i < req.n.size(); ++i)
       {
 	okao_id.push_back(req.n[i]);
 	cout << "input okao_id: " << okao_id[i] << endl;
       }
+    
+    
     return true;
   }    
 
@@ -81,6 +97,8 @@ public:
 	
 	if( srv.call( hs ) )
 	  {	
+	    //cout << "okao_id:" << okao_id[i] << ", x,y =" 
+	    //	 << hs.response.dst.p.x << ","<< hs.response.dst.p.y <<  endl ;
 	    markerPublisher( hs.response.dst, hs.response.img );
 	  }
 	else
@@ -88,6 +106,7 @@ public:
 	    cout << "not found!"<<endl;
 	  }
       }
+
 
   }
 
@@ -171,6 +190,7 @@ public:
 
   void markerPublisher(humans_msgs::Human hm, sensor_msgs::Image img)
   {
+    //cout << hm << endl;
     joints.clear();
     visualization_msgs::Marker points, line_list;
 
@@ -204,6 +224,7 @@ public:
     jointInput( joints, &line_points );
 
     line_list.points = line_points; 
+    
 
     humans_msgs::PersonPoseImgArray ppia;
     humans_msgs::PersonPoseImg ppi;

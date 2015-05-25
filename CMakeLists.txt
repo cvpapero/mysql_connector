@@ -192,11 +192,14 @@ target_link_libraries(people_position_database2 ${catkin_LIBRARIES} mysqlclient)
 add_executable(position_database_update src/position_database_update.cpp)
 target_link_libraries(position_database_update ${catkin_LIBRARIES} mysqlclient)
 
+add_executable(relation_mining src/relation_mining.cpp)
+target_link_libraries(relation_mining ${catkin_LIBRARIES} mysqlclient)
+
 add_executable(position_database_server src/position_database_server.cpp)
 target_link_libraries(position_database_server ${catkin_LIBRARIES} ${OpenCV_LIBS} mysqlclient)
 
-#add_executable(database_client_joints src/database_client_joints.cpp)
-#target_link_libraries(database_client_joints ${catkin_LIBRARIES})
+add_executable(database_client_joints src/database_client_joints.cpp)
+target_link_libraries(database_client_joints ${catkin_LIBRARIES})
 
 #add_executable(database_client_path src/database_client_path.cpp)
 #target_link_libraries(database_client_path ${catkin_LIBRARIES})

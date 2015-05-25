@@ -98,7 +98,7 @@ public:
     dbuser("root"),
     dbpass("robot15"),
     dbname("data1"),
-    dbtable("mapping_db_test")
+    dbtable("2015515")
   {
     //init parameter
     nh_param.param("dbhost", dbhost, dbhost);
@@ -153,7 +153,7 @@ private:
 	fprintf(stderr, "%s\n", mysql_error(connector));
 	return false;
       }
-    ROS_INFO("MySQL opend.");
+    cout << "MySQL connected :" << dbname << endl;
     return true;
   }
 
@@ -308,7 +308,7 @@ public:
       }
 
   }
-
+ 
   void clearPeoplePoseImgArray()
   {
     ppia.ppis.clear();
@@ -343,23 +343,23 @@ public:
 
     h_res->header.frame_id = "map";
     h_res->header.stamp = ros::Time::now();
-    //h_res->d_id = atoi( row[0] );
-    h_res->max_okao_id = atoi( row[0] );
-    h_res->max_hist = atoi( row[1] );
-    h_res->p.x = atof( row[7] );
-    h_res->p.y = atof( row[8] );
-    h_res->p.z = atof( row[9] );
+    h_res->state = atoi( row[0] );
+    h_res->max_okao_id = atoi( row[1] );
+    h_res->max_hist = atoi( row[2] );
+    h_res->p.x = atof( row[8] );
+    h_res->p.y = atof( row[9] );
+    h_res->p.z = atof( row[10] );
     //h_res->magni = atof( row[10] );
-    h_res->body.tracking_id = atoll( row[6] );
+    h_res->body.tracking_id = atoll( row[7] );
 
     humans_msgs::Person per;
-    per.name = row[3];
-    per.laboratory = row[4];
-    per.grade = row[5];
+    per.name = row[4];
+    per.laboratory = row[5];
+    per.grade = row[6];
     h_res->face.persons.push_back( per );
 
     humans_msgs::Body body_tmp;
-    jsonToMsg(row[10], &body_tmp);
+    jsonToMsg(row[11], &body_tmp);
     h_res->body.joints = body_tmp.joints;
     //cout << "row[11]:";
     //cout << row[11] << endl;
@@ -367,7 +367,7 @@ public:
 
   void jsonToMsg(string row, humans_msgs::Body* body)
   {
-    //cout<< "json to msg" << endl;
+    cout<< "json to msg" << endl;
     picojson::value v;
     string err;
     picojson::parse(v, row.begin(), row.end(), &err);
@@ -391,6 +391,7 @@ public:
 	    joint.position.y = (double)pos["y"].get<double>();
 	    joint.position.z = (double)pos["z"].get<double>();
 
+	    
 	    /*
 	    picojson::object &ori = oj["orientation"].get<picojson::object>();
 	    joint.orientation.x = (double)ori["x"].get<double>();
@@ -398,6 +399,7 @@ public:
 	    joint.orientation.z = (double)ori["z"].get<double>();
 	    joint.orientation.w = (double)ori["w"].get<double>();
 	    */
+
 	    joint.orientation.w = 1;
 	    body->joints.push_back( joint );	  
 	  }
@@ -453,7 +455,7 @@ public:
 	return false;
       }
   }
-
+  
   //クエリを使って探す（まだできていない）
   bool resTrackingId(humans_msgs::HumanImgSrv::Request &request,
 		     humans_msgs::HumanImgSrv::Response &response)
@@ -463,8 +465,10 @@ public:
     stringstream select_query;
     
     select_query << "SELECT * FROM " 
+		 << "`"
 		 << dbtable.c_str() 
-		 << " WHERE okao_id = " << request.src.body.tracking_id 
+		 << "`"
+		 << " WHERE tracking_id = " << request.src.body.tracking_id 
 		 << " ORDER BY time_stamp DESC LIMIT 1 ;";
 
     if( mysql_query( connector, select_query.str().c_str() ) )
@@ -503,6 +507,7 @@ public:
       }
 
   }
+  
 
   bool resOkaoId(humans_msgs::HumanImgSrv::Request &request,
 		 humans_msgs::HumanImgSrv::Response &response)
@@ -512,15 +517,12 @@ public:
     stringstream select_query;
     
     select_query << "SELECT * FROM " 
-		 << dbtable.c_str() 
+		 << "`"
+		 << dbtable.c_str()
+		 << "`" 
 		 << " WHERE okao_id = " << request.src.max_okao_id
 		 << " ORDER BY time_stamp DESC LIMIT 1 ;";
-      /*
-		 << " WHERE okao_id = " << request.src.max_okao_id
-		 << " AND time_stamp = ( select max(time_stamp) from "
-		 << dbtable.c_str() 
-		 << " );";
-      */
+
     if( mysql_query( connector, select_query.str().c_str() ) )
       {
 	ROS_ERROR("%s", mysql_error(connector));

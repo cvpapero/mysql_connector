@@ -1,4 +1,9 @@
 /*
+2015.5.20
+一人の人物について着目する
+いや、まてよ、、、むしろ、
+
+
 2015.4.21---------------
 その日のテーブルを確認して、なければ作成する
 あればそれに接続する
@@ -23,8 +28,6 @@
 #include "humans_msgs/Humans.h"
 #include "humans_msgs/HumanSrv.h"
 #include "humans_msgs/HumansSrv.h"
-
-//#include "Util.hpp"
 
 #include "okao_client/OkaoStack.h"
 //#include "MsgToMsg.hpp"
