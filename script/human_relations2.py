@@ -64,7 +64,6 @@ class human_relations:
              "time_stamp DATETIME, name VARCHAR(45), "+\
              "laboratory VARCHAR(45), grade VARCHAR(45), tracking_id BIGINT(20), "+\
              "px DOUBLE, py DOUBLE, pz DOUBLE, joints TEXT)"
-        
         try:
             self.cur.execute(qy)
             print qy
@@ -85,13 +84,17 @@ class human_relations:
         okao_id = req.n
         print "request okao_id:"+str(okao_id)
         #create database for master
+        res = String()
         if self.db_init(okao_id):
             #first get tracking id binded okao_id
             self.tracking_select(okao_id)
             #second get okao id binded all data
             self.okao_select(okao_id)
+            res = 'analysis ok! id:'+str(okao_id)
+        else: 
+            res = 'already exist! id:'+str(okao_id)
 
-        return humans_msgs.srv.Int32SrvResponse()
+        return humans_msgs.srv.Int32SrvResponse(res)
 
     #network vizualization
     def viz_req(self, req):
@@ -102,7 +105,9 @@ class human_relations:
         msg = String()
         msg.data = self.select_msg
         self.select_pub.publish(msg)
-        return humans_msgs.srv.Int32SrvResponse()
+        res = String()
+        res = 'set data id:'+str(okao_id)
+        return humans_msgs.srv.Int32SrvResponse(res)
 
     def time_req(self, req):
         start = req.start
@@ -119,12 +124,17 @@ class human_relations:
     def tracking_select(self, okao_id):
         first_qy = "SELECT DISTINCT tracking_id FROM `"+\
                    self.t_name+"` WHERE state = 2 and okao_id = "+str(okao_id)
-        self.cur.execute(first_qy)
-        res = self.cur.fetchall()
-        index = 0
-        for row in res:
-            self.t_buf.update({row[0]:index})
-            index = index + 1
+        try:
+            self.cur.execute(first_qy)
+            res = self.cur.fetchall()
+            index = 0
+            for row in res:
+                self.t_buf.update({row[0]:index})
+                index = index + 1
+            return True
+        except mysql.connector.Error as err:
+            print err
+            return False 
 
 
     def okao_select(self, okao_id):
@@ -141,7 +151,7 @@ class human_relations:
             elif row[1] != okao_id and row[0] == 2:
                 self.com_data(row)
                 get_data_num = get_data_num + 1
-
+                
         if get_data_num != 0:
             self.cur.execute(self.ins_qy[:-1])
             self.con.commit()
@@ -149,6 +159,7 @@ class human_relations:
             return True
         else:
             return False
+
 
 
     def add_data(self, row):
@@ -183,19 +194,20 @@ class human_relations:
         self.add_data(row)
 
     def com_data(self, row):
-        d_xy = math.sqrt( (self.px-row[8])**2 + (self.py-row[9])**2 )
-        d_t = row[3] - self.time_stamp 
-        delta_max = timedelta(seconds=self.d_max_t)
-        delta_min = timedelta(seconds=0)
-        #print type(row[3])
-        if d_xy < self.d_max_xy and d_t <= delta_max and delta_min <= d_t:
-            self.add_data(row)
-            #this input human relations data
-            #print "ather okao_id:"+str(row[1])
-            #print "time now_data:"+str(row[3])
-            #print "time okao:"+str(self.time_stamp)
-            #print "t_delta:"+str(d_t.total_seconds())
-            #print "xy_delta:" + str(d_xy)
+        if self.okao_id != 0:
+            d_xy = math.sqrt( (self.px-row[8])**2 + (self.py-row[9])**2 )
+            d_t = row[3] - self.time_stamp 
+            delta_max = timedelta(seconds=self.d_max_t)
+            delta_min = timedelta(seconds=0)
+            #print type(row[3])
+            if d_xy < self.d_max_xy and d_t <= delta_max and delta_min <= d_t:
+                self.add_data(row)
+                #this input human relations data
+                #print "ather okao_id:"+str(row[1])
+                #print "time now_data:"+str(row[3])
+                #print "time okao:"+str(self.time_stamp)
+                #print "t_delta:"+str(d_t.total_seconds())
+                #print "xy_delta:" + str(d_xy)
 
     def time_select(self, start, end):
         self.select_msg = "["

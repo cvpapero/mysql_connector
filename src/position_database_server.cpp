@@ -1,4 +1,9 @@
 /*
+2015.5.29
+テーブルを最新にする！！
+
+
+
 2014.4.7----------------
 つねに何かをパブリッシュするモジュール
 
@@ -97,15 +102,15 @@ public:
     dbhost("127.0.0.1"),
     dbuser("root"),
     dbpass("robot15"),
-    dbname("data1"),
-    dbtable("2015515")
+    dbname("data1")
+    //dbtable("2015515")
   {
     //init parameter
     nh_param.param("dbhost", dbhost, dbhost);
     nh_param.param("dbuser", dbuser, dbuser);
     nh_param.param("dbpass", dbpass, dbpass);
     nh_param.param("dbname", dbname, dbname);
-    nh_param.param("dbtable", dbtable, dbtable);
+    //nh_param.param("dbtable", dbtable, dbtable);
 
     pps_pub = nh.advertise<humans_msgs::PersonPoseImgArray
 			   >("/a_human", 10);
@@ -548,7 +553,9 @@ public:
 	  }
 	else
 	  {
-	    cout << "okao_id: "<< request.src.max_okao_id << ", row_num: "<<num_fields<<endl;
+	    cout << "okao_id: "
+		 << request.src.max_okao_id 
+		 << ", row_num: "<<num_fields<<endl;
 	    return false;
 	  }
       }
